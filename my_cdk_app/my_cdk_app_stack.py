@@ -20,7 +20,17 @@ class MyCdkAppStack(Stack):
                 "region": "ap-south-1",
             }, **kwargs)
 
-        # 🔐 Cognito User Pool with MFA and Phone Login
+        # ⚡ Post Confirmation Lambda (for auto-adding users to groups)
+        post_confirmation_lambda = _lambda.Function(
+            self,
+            "PostConfirmationLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="post_confirmation_handler.handler",
+            code=_lambda.Code.from_asset("lambda"),
+            timeout=Duration.seconds(10),
+        )
+
+        # 🔐 Cognito User Pool with MFA, Phone Login, and Custom Role Attribute
         user_pool = cognito.UserPool(
             self,
             "UserPool",
@@ -28,12 +38,15 @@ class MyCdkAppStack(Stack):
             sign_in_aliases=cognito.SignInAliases(
                 username=True, 
                 email=True,
-                phone=True  # Enable phone login
+                phone=True
             ),
             standard_attributes=cognito.StandardAttributes(
                 email=cognito.StandardAttribute(required=True, mutable=True),
                 phone_number=cognito.StandardAttribute(required=False, mutable=True),
             ),
+            custom_attributes={
+                "role": cognito.StringAttribute(mutable=True)
+            },
             password_policy=cognito.PasswordPolicy(
                 min_length=8,
                 require_digits=True,
@@ -41,14 +54,25 @@ class MyCdkAppStack(Stack):
                 require_uppercase=True,
                 require_symbols=True,
             ),
-            # 🔒 MFA Configuration
-            mfa=cognito.Mfa.OPTIONAL,  # Users can enable MFA
+            mfa=cognito.Mfa.OPTIONAL,
             mfa_second_factor=cognito.MfaSecondFactor(
-                sms=True,   # SMS-based MFA
-                otp=True    # TOTP (Authenticator app)
+                sms=True,
+                otp=True
             ),
             account_recovery=cognito.AccountRecovery.EMAIL_AND_PHONE_WITHOUT_MFA,
             removal_policy=RemovalPolicy.DESTROY,
+            # 🎯 Lambda Trigger for Post Confirmation
+            lambda_triggers=cognito.UserPoolTriggers(
+                post_confirmation=post_confirmation_lambda
+            )
+        )
+
+        # Grant Lambda permission to add users to groups
+        post_confirmation_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cognito-idp:AdminAddUserToGroup"],
+                resources=[user_pool.user_pool_arn]
+            )
         )
 
         # 👥 Create Cognito Groups for Role-Based Access
@@ -80,15 +104,12 @@ class MyCdkAppStack(Stack):
                 user_srp=True
             ),
             generate_secret=False,
-            # Include groups in the ID token
-            read_attributes=cognito.ClientAttributes().with_standard_attributes(
-                email=True,
-                phone_number=True,
-            ),
-            write_attributes=cognito.ClientAttributes().with_standard_attributes(
-                email=True,
-                phone_number=True,
-            ),
+            read_attributes=cognito.ClientAttributes()
+                .with_standard_attributes(email=True, phone_number=True)
+                .with_custom_attributes("role"),
+            write_attributes=cognito.ClientAttributes()
+                .with_standard_attributes(email=True, phone_number=True)
+                .with_custom_attributes("role"),
         )
 
         # 📊 DynamoDB Table for Calculator History

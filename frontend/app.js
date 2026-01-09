@@ -58,9 +58,10 @@ function extractRolesFromToken(token) {
 // Authentication Functions
 // ==========================================
 
-async function signUp(username, email, password, phone) {
+async function signUp(username, email, password, phone, role) {
     const userAttributes = [
-        { Name: 'email', Value: email }
+        { Name: 'email', Value: email },
+        { Name: 'custom:role', Value: role || 'ASrole' }
     ];
 
     if (phone) {
@@ -495,9 +496,10 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     const phone = document.getElementById('registerPhone')?.value || '';
     const username = document.getElementById('registerUsername').value;
     const password = document.getElementById('registerPassword').value;
+    const role = document.querySelector('input[name="registerRole"]:checked')?.value || 'ASrole';
 
     try {
-        await signUp(username, email, password, phone);
+        await signUp(username, email, password, phone, role);
         pendingUsername = username;
         showTab('confirm');
     } catch (error) {
