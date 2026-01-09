@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#8b5cf6',
+                        accent: '#ec4899',
+                        dark: '#0f172a',
+                        darker: '#020617',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass { 
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-calc {
+            transition: all 0.2s ease;
+        }
+        .btn-calc:hover {
+            transform: scale(1.05);
+        }
+        .btn-calc:active {
+            transform: scale(0.95);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+        }
+        .gradient-text {
+            background: linear-gradient(90deg, #6366f1, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <!-- Auth Section -->
+    <div id="authSection" class="min-h-screen flex items-center justify-center p-4">
+        <div class="glass rounded-3xl p-8 w-full max-w-md fade-in">
+            <!-- Logo -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent mb-4">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold text-white mb-2">Calculator</h1>
+                <p class="text-gray-400">Sign in to access your calculator</p>
+            </div>
+
+            <!-- Tab Buttons -->
+            <div class="flex mb-6 bg-slate-800/50 rounded-xl p-1">
+                <button id="loginTab" onclick="showTab('login')" class="flex-1 py-3 px-4 rounded-lg text-white font-medium transition-all bg-primary">
+                    Login
+                </button>
+                <button id="registerTab" onclick="showTab('register')" class="flex-1 py-3 px-4 rounded-lg text-gray-400 font-medium transition-all hover:text-white">
+                    Register
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Username</label>
+                    <input type="text" id="loginUsername" required
+                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                        placeholder="Enter your username">
+                </div>
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="loginPassword" required
+                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                        placeholder="Enter your password">
+                </div>
+                <button type="submit"
+                    class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                    Sign In
+                </button>
+                <div id="loginError" class="hidden text-red-400 text-sm text-center mt-2"></div>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="registerEmail" required
+                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                        placeholder="Enter your email">
+                </div>
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Username</label>
+                    <input type="text" id="registerUsername" required
+                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                        placeholder="Choose a username">
+                </div>
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="registerPassword" required
+                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                        placeholder="Create a password">
+                    <p class="text-gray-500 text-xs mt-1">Min 8 chars, with uppercase, lowercase, number & symbol</p>
+                </div>
+                <button type="submit"
+                    class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                    Create Account
+                </button>
+                <div id="registerError" class="hidden text-red-400 text-sm text-center mt-2"></div>
+                <div id="registerSuccess" class="hidden text-green-400 text-sm text-center mt-2"></div>
+            </form>
+
+            <!-- Confirmation Form -->
+            <form id="confirmForm" class="space-y-4 hidden">
+                <div class="text-center mb-4">
+                    <p class="text-gray-300">Please enter the confirmation code sent to your email</p>
+                </div>
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Confirmation Code</label>
+                    <input type="text" id="confirmCode" required
+                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all text-center text-2xl tracking-widest"
+                        placeholder="000000">
+                </div>
+                <button type="submit"
+                    class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                    Verify Account
+                </button>
+                <div id="confirmError" class="hidden text-red-400 text-sm text-center mt-2"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Calculator Section -->
+    <div id="calculatorSection" class="min-h-screen p-4 hidden">
+        <div class="max-w-6xl mx-auto fade-in">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">Calculator</h1>
+                        <p class="text-gray-400 text-sm">Welcome, <span id="usernameDisplay" class="text-primary"></span></p>
+                    </div>
+                </div>
+                <button onclick="logout()" class="px-4 py-2 text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                    Logout
+                </button>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-8">
+                <!-- Calculator -->
+                <div class="glass rounded-3xl p-6">
+                    <h2 class="text-xl font-semibold text-white mb-6">Calculator</h2>
+                    
+                    <!-- Display -->
+                    <div class="bg-slate-800/50 rounded-2xl p-6 mb-6">
+                        <div id="expression" class="text-gray-400 text-right text-lg h-6 mb-2"></div>
+                        <div id="display" class="text-white text-right text-4xl font-light">0</div>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="grid grid-cols-4 gap-3">
+                        <button onclick="clearDisplay()" class="btn-calc bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-xl py-4 text-xl font-medium">C</button>
+                        <button onclick="backspace()" class="btn-calc bg-slate-700/50 text-gray-300 hover:bg-slate-700 rounded-xl py-4 text-xl font-medium">⌫</button>
+                        <button onclick="setOperation('divide')" class="btn-calc bg-slate-700/50 text-gray-300 hover:bg-slate-700 rounded-xl py-4 text-xl font-medium">÷</button>
+                        <button onclick="setOperation('multiply')" class="btn-calc bg-slate-700/50 text-gray-300 hover:bg-slate-700 rounded-xl py-4 text-xl font-medium">×</button>
+                        
+                        <button onclick="appendNumber('7')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">7</button>
+                        <button onclick="appendNumber('8')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">8</button>
+                        <button onclick="appendNumber('9')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">9</button>
+                        <button onclick="setOperation('subtract')" class="btn-calc bg-slate-700/50 text-gray-300 hover:bg-slate-700 rounded-xl py-4 text-xl font-medium">−</button>
+                        
+                        <button onclick="appendNumber('4')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">4</button>
+                        <button onclick="appendNumber('5')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">5</button>
+                        <button onclick="appendNumber('6')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">6</button>
+                        <button onclick="setOperation('add')" class="btn-calc bg-slate-700/50 text-gray-300 hover:bg-slate-700 rounded-xl py-4 text-xl font-medium">+</button>
+                        
+                        <button onclick="appendNumber('1')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">1</button>
+                        <button onclick="appendNumber('2')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">2</button>
+                        <button onclick="appendNumber('3')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">3</button>
+                        <button onclick="calculate()" class="btn-calc bg-gradient-to-br from-primary to-secondary text-white hover:opacity-90 rounded-xl py-4 text-xl font-medium row-span-2">=</button>
+                        
+                        <button onclick="appendNumber('0')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium col-span-2">0</button>
+                        <button onclick="appendNumber('.')" class="btn-calc bg-slate-800/50 text-white hover:bg-slate-700/50 rounded-xl py-4 text-xl font-medium">.</button>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="glass rounded-3xl p-6">
+                    <h2 class="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        History
+                    </h2>
+                    <div id="historyList" class="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                        <div class="text-gray-500 text-center py-8">
+                            No calculations yet
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
