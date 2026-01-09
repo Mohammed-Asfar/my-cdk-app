@@ -7,20 +7,56 @@ from datetime import datetime
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['HISTORY_TABLE'])
 
+# Role-based operation permissions
+ROLE_PERMISSIONS = {
+    'DMrole': ['divide', 'multiply'],
+    'ASrole': ['add', 'subtract']
+}
+
 
 def handler(event, context):
     """
-    Calculator Lambda handler - performs calculations and stores history.
+    Calculator Lambda handler with Role-Based Access Control.
+    - DMrole: can divide and multiply
+    - ASrole: can add and subtract
     """
     try:
-        # Get user ID from Cognito authorizer
-        user_id = event['requestContext']['authorizer']['claims']['sub']
+        # Get user info from Cognito authorizer
+        claims = event['requestContext']['authorizer']['claims']
+        user_id = claims['sub']
+        
+        # Get user's groups (roles) from the token
+        # Groups come as a string like "[DMrole]" or "[DMrole, ASrole]"
+        groups_claim = claims.get('cognito:groups', '[]')
+        if isinstance(groups_claim, str):
+            # Parse the groups string
+            groups = [g.strip() for g in groups_claim.strip('[]').split(',') if g.strip()]
+        else:
+            groups = groups_claim if groups_claim else []
         
         # Parse request body
         body = json.loads(event['body'])
         operand1 = Decimal(str(body['operand1']))
         operand2 = Decimal(str(body['operand2']))
         operation = body['operation']
+        
+        # 🔒 Role-Based Access Control Check
+        allowed = False
+        required_role = None
+        
+        for role, allowed_ops in ROLE_PERMISSIONS.items():
+            if operation in allowed_ops:
+                required_role = role
+                if role in groups:
+                    allowed = True
+                break
+        
+        if not allowed:
+            return response(403, {
+                'error': f'Access Denied: You need "{required_role}" role to perform "{operation}" operation.',
+                'your_roles': groups,
+                'required_role': required_role
+            })
         
         # Perform calculation
         result = None
@@ -45,7 +81,8 @@ def handler(event, context):
             'operand1': operand1,
             'operand2': operand2,
             'operation': operation,
-            'result': result
+            'result': result,
+            'role_used': required_role
         }
         table.put_item(Item=item)
         
@@ -68,7 +105,8 @@ def handler(event, context):
         
         return response(200, {
             'result': str(result),
-            'history': history
+            'history': history,
+            'user_roles': groups
         })
         
     except KeyError as e:
