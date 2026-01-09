@@ -74,6 +74,7 @@
         .gradient-text {
             background: linear-gradient(90deg, #6366f1, #ec4899);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -81,6 +82,16 @@
             font-size: 0.65rem;
             padding: 2px 6px;
             border-radius: 4px;
+        }
+
+        .sub-tab {
+            transition: all 0.2s ease;
+        }
+
+        .sub-tab.active {
+            background: rgba(99, 102, 241, 0.2);
+            color: #6366f1;
+            border-color: #6366f1;
         }
     </style>
 </head>
@@ -103,127 +114,238 @@
                 <p class="text-gray-400">Sign in to access your calculator</p>
             </div>
 
-            <!-- Tab Buttons -->
+            <!-- Main Tab Buttons (Login/Register) -->
             <div class="flex mb-6 bg-slate-800/50 rounded-xl p-1">
-                <button id="loginTab" onclick="showTab('login')"
+                <button id="loginTab" onclick="showMainTab('login')"
                     class="flex-1 py-3 px-4 rounded-lg text-white font-medium transition-all bg-primary">
                     Login
                 </button>
-                <button id="registerTab" onclick="showTab('register')"
+                <button id="registerTab" onclick="showMainTab('register')"
                     class="flex-1 py-3 px-4 rounded-lg text-gray-400 font-medium transition-all hover:text-white">
                     Register
                 </button>
             </div>
 
-            <!-- Login Form -->
-            <form id="loginForm" class="space-y-4">
-                <div>
-                    <label class="block text-gray-300 text-sm font-medium mb-2">Username / Email / Phone</label>
-                    <input type="text" id="loginUsername" required
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                        placeholder="Enter username, email, or phone">
+            <!-- ==================== LOGIN SECTION ==================== -->
+            <div id="loginSection">
+                <!-- Login Sub-Tabs -->
+                <div class="flex gap-2 mb-4">
+                    <button id="loginPhoneTab" onclick="showLoginTab('phone')"
+                        class="sub-tab active flex-1 py-2 px-3 rounded-lg text-sm font-medium border border-slate-700 text-gray-300">
+                        📱 Phone
+                    </button>
+                    <button id="loginEmailTab" onclick="showLoginTab('email')"
+                        class="sub-tab flex-1 py-2 px-3 rounded-lg text-sm font-medium border border-slate-700 text-gray-300">
+                        ✉️ Email/Username
+                    </button>
                 </div>
-                <div>
-                    <label class="block text-gray-300 text-sm font-medium mb-2">Password</label>
-                    <input type="password" id="loginPassword" required
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                        placeholder="Enter your password">
-                </div>
-                <button type="submit"
-                    class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-                    Sign In
-                </button>
-                <div id="loginError" class="hidden text-red-400 text-sm text-center mt-2"></div>
-            </form>
 
-            <!-- MFA Form -->
-            <form id="mfaForm" class="space-y-4 hidden">
-                <div class="text-center mb-4">
-                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/20 flex items-center justify-center">
-                        <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
-                            </path>
-                        </svg>
+                <!-- Phone Login Form -->
+                <form id="loginPhoneForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Phone Number</label>
+                        <div class="flex gap-2">
+                            <input type="tel" id="loginPhone" required
+                                class="flex-1 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                                placeholder="+91 XXXXXXXXXX">
+                            <button type="button" onclick="requestLoginOtp()"
+                                class="px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/80 transition-all whitespace-nowrap">
+                                Send OTP
+                            </button>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-semibold text-white mb-2">Two-Factor Authentication</h3>
-                    <p class="text-gray-400">Enter the verification code from your authenticator app or SMS</p>
-                </div>
-                <div>
-                    <input type="text" id="mfaCode" required
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all text-center text-2xl tracking-widest"
-                        placeholder="000000" maxlength="6">
-                </div>
-                <button type="submit"
-                    class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all">
-                    Verify
-                </button>
-                <div id="mfaError" class="hidden text-red-400 text-sm text-center mt-2"></div>
-            </form>
-
-            <!-- Register Form -->
-            <form id="registerForm" class="space-y-4 hidden">
-                <div>
-                    <label class="block text-gray-300 text-sm font-medium mb-2">Email</label>
-                    <input type="email" id="registerEmail" required
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                        placeholder="Enter your email">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-sm font-medium mb-2">Phone Number (Optional)</label>
-                    <input type="tel" id="registerPhone"
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                        placeholder="+91 XXXXXXXXXX">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-sm font-medium mb-2">Username</label>
-                    <input type="text" id="registerUsername" required
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                        placeholder="Choose a username">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-sm font-medium mb-2">Password</label>
-                    <input type="password" id="registerPassword" required
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                        placeholder="Create a password">
-                    <p class="text-gray-500 text-xs mt-1">Min 8 chars, with uppercase, lowercase, number & symbol</p>
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-sm font-medium mb-2">Select Your Role</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="relative">
-                            <input type="radio" name="registerRole" value="ASrole" checked class="peer sr-only">
-                            <div
-                                class="p-4 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer transition-all peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 hover:border-slate-600">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-                                    <span class="text-white font-medium">ASrole</span>
-                                </div>
-                                <p class="text-gray-400 text-xs">Add & Subtract operations</p>
-                            </div>
-                        </label>
-                        <label class="relative">
-                            <input type="radio" name="registerRole" value="DMrole" class="peer sr-only">
-                            <div
-                                class="p-4 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer transition-all peer-checked:border-amber-500 peer-checked:bg-amber-500/10 hover:border-slate-600">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <span class="w-3 h-3 rounded-full bg-amber-500"></span>
-                                    <span class="text-white font-medium">DMrole</span>
-                                </div>
-                                <p class="text-gray-400 text-xs">Divide & Multiply operations</p>
-                            </div>
-                        </label>
+                    <div id="loginOtpSection" class="hidden">
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Enter OTP</label>
+                        <input type="text" id="loginPhoneOtp"
+                            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all text-center text-2xl tracking-widest"
+                            placeholder="000000" maxlength="6">
                     </div>
-                </div>
-                <button type="submit"
-                    class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-                    Create Account
-                </button>
-                <div id="registerError" class="hidden text-red-400 text-sm text-center mt-2"></div>
-                <div id="registerSuccess" class="hidden text-green-400 text-sm text-center mt-2"></div>
-            </form>
+                    <button type="submit" id="loginPhoneSubmit"
+                        class="hidden w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all">
+                        Sign In
+                    </button>
+                    <div id="loginPhoneError" class="hidden text-red-400 text-sm text-center"></div>
+                </form>
 
-            <!-- Confirmation Form -->
+                <!-- Email/Username Login Form -->
+                <form id="loginEmailForm" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Email or Username</label>
+                        <input type="text" id="loginIdentifier" required
+                            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                            placeholder="Enter email or username">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="loginPassword" required
+                            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                            placeholder="Enter your password">
+                    </div>
+                    <button type="submit"
+                        class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                        Sign In
+                    </button>
+                    <div id="loginEmailError" class="hidden text-red-400 text-sm text-center"></div>
+                </form>
+            </div>
+
+            <!-- ==================== REGISTER SECTION ==================== -->
+            <div id="registerSection" class="hidden">
+                <!-- Register Sub-Tabs -->
+                <div class="flex gap-2 mb-4">
+                    <button id="registerPhoneTab" onclick="showRegisterTab('phone')"
+                        class="sub-tab active flex-1 py-2 px-3 rounded-lg text-sm font-medium border border-slate-700 text-gray-300">
+                        📱 Phone
+                    </button>
+                    <button id="registerEmailTab" onclick="showRegisterTab('email')"
+                        class="sub-tab flex-1 py-2 px-3 rounded-lg text-sm font-medium border border-slate-700 text-gray-300">
+                        ✉️ Email
+                    </button>
+                </div>
+
+                <!-- Phone Register - Step 1: Phone & OTP -->
+                <form id="registerPhoneForm" class="space-y-4">
+                    <div id="phoneStep1">
+                        <div class="mb-4">
+                            <label class="block text-gray-300 text-sm font-medium mb-2">Phone Number</label>
+                            <div class="flex gap-2">
+                                <input type="tel" id="registerPhone" required
+                                    class="flex-1 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                                    placeholder="+91 XXXXXXXXXX">
+                                <button type="button" onclick="requestRegisterOtp()"
+                                    class="px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/80 transition-all whitespace-nowrap">
+                                    Send OTP
+                                </button>
+                            </div>
+                        </div>
+                        <div id="registerOtpSection" class="hidden mb-4">
+                            <label class="block text-gray-300 text-sm font-medium mb-2">Enter OTP</label>
+                            <input type="text" id="registerPhoneOtp"
+                                class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all text-center text-2xl tracking-widest"
+                                placeholder="000000" maxlength="6">
+                            <button type="button" onclick="verifyRegisterOtp()"
+                                class="w-full mt-4 py-3 px-4 bg-primary text-white font-semibold rounded-xl hover:bg-primary/80 transition-all">
+                                Verify OTP
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Phone Register - Step 2: Username & Role -->
+                    <div id="phoneStep2" class="hidden">
+                        <div class="text-center mb-4">
+                            <div
+                                class="w-12 h-12 mx-auto mb-2 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <p class="text-green-400 text-sm">Phone verified! Complete your profile:</p>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 text-sm font-medium mb-2">Choose Username</label>
+                            <input type="text" id="registerPhoneUsername" required
+                                class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                                placeholder="Enter username">
+                        </div>
+                        <!-- Role Selection -->
+                        <div class="mb-4">
+                            <label class="block text-gray-300 text-sm font-medium mb-2">Select Your Role</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="relative">
+                                    <input type="radio" name="phoneRegisterRole" value="ASrole" checked
+                                        class="peer sr-only">
+                                    <div
+                                        class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer transition-all peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 hover:border-slate-600">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                            <span class="text-white text-sm font-medium">ASrole</span>
+                                        </div>
+                                        <p class="text-gray-400 text-xs mt-1">+ − operations</p>
+                                    </div>
+                                </label>
+                                <label class="relative">
+                                    <input type="radio" name="phoneRegisterRole" value="DMrole" class="peer sr-only">
+                                    <div
+                                        class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer transition-all peer-checked:border-amber-500 peer-checked:bg-amber-500/10 hover:border-slate-600">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                                            <span class="text-white text-sm font-medium">DMrole</span>
+                                        </div>
+                                        <p class="text-gray-400 text-xs mt-1">÷ × operations</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit"
+                            class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all">
+                            Complete Registration
+                        </button>
+                    </div>
+                    <div id="registerPhoneError" class="hidden text-red-400 text-sm text-center"></div>
+                </form>
+
+                <!-- Email Register Form -->
+                <form id="registerEmailForm" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Email</label>
+                        <input type="email" id="registerEmail" required
+                            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                            placeholder="Enter your email">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Username</label>
+                        <input type="text" id="registerEmailUsername" required
+                            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                            placeholder="Choose a username">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="registerEmailPassword" required
+                            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                            placeholder="Create a password">
+                        <p class="text-gray-500 text-xs mt-1">Min 8 chars, with uppercase, lowercase, number & symbol
+                        </p>
+                    </div>
+                    <!-- Role Selection -->
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Select Your Role</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="relative">
+                                <input type="radio" name="emailRegisterRole" value="ASrole" checked
+                                    class="peer sr-only">
+                                <div
+                                    class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer transition-all peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 hover:border-slate-600">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                        <span class="text-white text-sm font-medium">ASrole</span>
+                                    </div>
+                                    <p class="text-gray-400 text-xs mt-1">+ − operations</p>
+                                </div>
+                            </label>
+                            <label class="relative">
+                                <input type="radio" name="emailRegisterRole" value="DMrole" class="peer sr-only">
+                                <div
+                                    class="p-3 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer transition-all peer-checked:border-amber-500 peer-checked:bg-amber-500/10 hover:border-slate-600">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                                        <span class="text-white text-sm font-medium">DMrole</span>
+                                    </div>
+                                    <p class="text-gray-400 text-xs mt-1">÷ × operations</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <button type="submit"
+                        class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                        Create Account
+                    </button>
+                    <div id="registerEmailError" class="hidden text-red-400 text-sm text-center"></div>
+                </form>
+            </div>
+
+            <!-- Email Confirmation Form -->
             <form id="confirmForm" class="space-y-4 hidden">
                 <div class="text-center mb-4">
                     <p class="text-gray-300">Please enter the confirmation code sent to your email</p>
@@ -238,7 +360,32 @@
                     class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
                     Verify Account
                 </button>
-                <div id="confirmError" class="hidden text-red-400 text-sm text-center mt-2"></div>
+                <div id="confirmError" class="hidden text-red-400 text-sm text-center"></div>
+            </form>
+
+            <!-- MFA Form (for users with MFA enabled) -->
+            <form id="mfaForm" class="space-y-4 hidden">
+                <div class="text-center mb-4">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/20 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Two-Factor Authentication</h3>
+                    <p class="text-gray-400">Enter the verification code</p>
+                </div>
+                <div>
+                    <input type="text" id="mfaCode" required
+                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all text-center text-2xl tracking-widest"
+                        placeholder="000000" maxlength="6">
+                </div>
+                <button type="submit"
+                    class="w-full py-3 px-4 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all">
+                    Verify
+                </button>
+                <div id="mfaError" class="hidden text-red-400 text-sm text-center"></div>
             </form>
         </div>
     </div>

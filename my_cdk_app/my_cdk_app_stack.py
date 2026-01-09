@@ -30,7 +30,7 @@ class MyCdkAppStack(Stack):
             timeout=Duration.seconds(10),
         )
 
-        # 🔐 Cognito User Pool with MFA, Phone Login, and Custom Role Attribute
+        # 🔐 Cognito User Pool with MFA, Phone/Email Login
         user_pool = cognito.UserPool(
             self,
             "UserPool",
@@ -40,8 +40,9 @@ class MyCdkAppStack(Stack):
                 email=True,
                 phone=True
             ),
+            # Make email and phone optional for flexibility
             standard_attributes=cognito.StandardAttributes(
-                email=cognito.StandardAttribute(required=True, mutable=True),
+                email=cognito.StandardAttribute(required=False, mutable=True),
                 phone_number=cognito.StandardAttribute(required=False, mutable=True),
             ),
             custom_attributes={
@@ -67,15 +68,15 @@ class MyCdkAppStack(Stack):
             )
         )
 
-        # Grant Lambda permission to add users to groups
+        # Grant Lambda permission to add users to groups (Fixed Circular Dependency)
         post_confirmation_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["cognito-idp:AdminAddUserToGroup"],
-                resources=[user_pool.user_pool_arn]
+                resources=[f"arn:aws:cognito-idp:{self.region}:{self.account}:userpool/*"]
             )
         )
 
-        # 👥 Create Cognito Groups for Role-Based Access
+        # 👥 Create Cognito Groups
         dm_role_group = cognito.CfnUserPoolGroup(
             self,
             "DMRoleGroup",
@@ -111,8 +112,8 @@ class MyCdkAppStack(Stack):
                 .with_standard_attributes(email=True, phone_number=True)
                 .with_custom_attributes("role"),
         )
-
-        # 📊 DynamoDB Table for Calculator History
+        
+        # 📊 DynamoDB Table
         history_table = dynamodb.Table(
             self,
             "CalculatorHistory",
@@ -144,7 +145,7 @@ class MyCdkAppStack(Stack):
         # Grant Lambda permissions to DynamoDB
         history_table.grant_read_write_data(calculate_lambda)
 
-        # 🌐 API Gateway with Cognito Authorizer
+        # 🌐 API Gateway
         api = apigw.RestApi(
             self,
             "CalculatorApi",
@@ -173,8 +174,9 @@ class MyCdkAppStack(Stack):
             authorization_type=apigw.AuthorizationType.COGNITO,
         )
 
-        # 📤 Outputs for frontend configuration
+        # 📤 Outputs
         CfnOutput(self, "UserPoolId", value=user_pool.user_pool_id)
         CfnOutput(self, "UserPoolClientId", value=user_pool_client.user_pool_client_id)
         CfnOutput(self, "ApiEndpoint", value=api.url)
         CfnOutput(self, "Region", value=self.region)
+

@@ -2,10 +2,9 @@
 // Configuration - UPDATE THESE AFTER CDK DEPLOY
 // ==========================================
 const CONFIG = {
-    // Replace these values with outputs from `cdk deploy`
-    userPoolId: 'ap-south-1_gGlWTKaqc',
-    clientId: '56gkngtgqvsolk1h8md78dlq1g',
-    apiEndpoint: 'https://psuppjaqkl.execute-api.ap-south-1.amazonaws.com/prod/',
+    userPoolId: 'ap-south-1_uu40EUfgR',
+    clientId: '3jdla5hg3fc7fo2e4lvg1088i9',
+    apiEndpoint: 'https://zrcjl6c65i.execute-api.ap-south-1.amazonaws.com/prod/',
     region: 'ap-south-1'
 };
 
@@ -18,8 +17,9 @@ let userRoles = [];
 let operand1 = null;
 let operation = null;
 let shouldResetDisplay = false;
-let mfaSession = null;
+let pendingPhone = '';
 let pendingUsername = '';
+let phoneSession = null;
 
 // Role permissions
 const ROLE_PERMISSIONS = {
@@ -48,25 +48,208 @@ function parseJwt(token) {
 function extractRolesFromToken(token) {
     const payload = parseJwt(token);
     if (!payload) return [];
-
-    // Cognito groups are in cognito:groups claim
     const groups = payload['cognito:groups'] || [];
     return Array.isArray(groups) ? groups : [groups];
 }
 
 // ==========================================
-// Authentication Functions
+// Tab Navigation Functions
 // ==========================================
 
-async function signUp(username, email, password, phone, role) {
+function showMainTab(tab) {
+    const loginSection = document.getElementById('loginSection');
+    const registerSection = document.getElementById('registerSection');
+    const confirmForm = document.getElementById('confirmForm');
+    const mfaForm = document.getElementById('mfaForm');
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+
+    // Hide all
+    loginSection.classList.add('hidden');
+    registerSection.classList.add('hidden');
+    confirmForm.classList.add('hidden');
+    mfaForm.classList.add('hidden');
+
+    if (tab === 'login') {
+        loginSection.classList.remove('hidden');
+        loginTab.classList.add('bg-primary');
+        loginTab.classList.remove('text-gray-400');
+        registerTab.classList.remove('bg-primary');
+        registerTab.classList.add('text-gray-400');
+    } else if (tab === 'register') {
+        registerSection.classList.remove('hidden');
+        registerTab.classList.add('bg-primary');
+        registerTab.classList.remove('text-gray-400');
+        loginTab.classList.remove('bg-primary');
+        loginTab.classList.add('text-gray-400');
+    } else if (tab === 'confirm') {
+        confirmForm.classList.remove('hidden');
+    } else if (tab === 'mfa') {
+        mfaForm.classList.remove('hidden');
+    }
+}
+
+function showLoginTab(tab) {
+    const phoneForm = document.getElementById('loginPhoneForm');
+    const emailForm = document.getElementById('loginEmailForm');
+    const phoneTab = document.getElementById('loginPhoneTab');
+    const emailTab = document.getElementById('loginEmailTab');
+
+    if (tab === 'phone') {
+        phoneForm.classList.remove('hidden');
+        emailForm.classList.add('hidden');
+        phoneTab.classList.add('active');
+        emailTab.classList.remove('active');
+    } else {
+        phoneForm.classList.add('hidden');
+        emailForm.classList.remove('hidden');
+        phoneTab.classList.remove('active');
+        emailTab.classList.add('active');
+    }
+}
+
+function showRegisterTab(tab) {
+    const phoneForm = document.getElementById('registerPhoneForm');
+    const emailForm = document.getElementById('registerEmailForm');
+    const phoneTab = document.getElementById('registerPhoneTab');
+    const emailTab = document.getElementById('registerEmailTab');
+
+    if (tab === 'phone') {
+        phoneForm.classList.remove('hidden');
+        emailForm.classList.add('hidden');
+        phoneTab.classList.add('active');
+        emailTab.classList.remove('active');
+    } else {
+        phoneForm.classList.add('hidden');
+        emailForm.classList.remove('hidden');
+        phoneTab.classList.remove('active');
+        emailTab.classList.add('active');
+    }
+}
+
+// ==========================================
+// Phone OTP Functions
+// ==========================================
+
+async function requestLoginOtp() {
+    const phone = document.getElementById('loginPhone').value;
+    if (!phone) {
+        showError('loginPhoneError', 'Please enter your phone number');
+        return;
+    }
+
+    try {
+        // For phone login, we use CUSTOM_AUTH flow with phone number
+        // But Cognito doesn't support passwordless phone OTP login out of the box
+        // We'll need to use SMS MFA or a custom Lambda trigger
+        // For now, show error explaining limitation
+        showError('loginPhoneError', 'Phone OTP login requires phone to be registered first. Use Email/Username login.');
+
+        // Show OTP section anyway for demo
+        document.getElementById('loginOtpSection').classList.remove('hidden');
+        document.getElementById('loginPhoneSubmit').classList.remove('hidden');
+        pendingPhone = phone;
+
+    } catch (error) {
+        showError('loginPhoneError', error.message);
+    }
+}
+
+async function requestRegisterOtp() {
+    const phone = document.getElementById('registerPhone').value;
+    if (!phone) {
+        showError('registerPhoneError', 'Please enter your phone number');
+        return;
+    }
+
+    try {
+        // Generate a temporary username from phone
+        const tempUsername = 'phone_' + phone.replace(/[^0-9]/g, '');
+
+        // Sign up with phone number (Cognito will send OTP)
+        const response = await fetch(`https://cognito-idp.${CONFIG.region}.amazonaws.com/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-amz-json-1.1',
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.SignUp'
+            },
+            body: JSON.stringify({
+                ClientId: CONFIG.clientId,
+                Username: tempUsername,
+                Password: generateTempPassword(), // Generate a strong temp password
+                UserAttributes: [
+                    { Name: 'phone_number', Value: phone },
+                    { Name: 'custom:role', Value: 'ASrole' } // Default role
+                ]
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to send OTP');
+        }
+
+        // Show OTP verification section
+        document.getElementById('registerOtpSection').classList.remove('hidden');
+        pendingPhone = phone;
+        pendingUsername = tempUsername;
+
+    } catch (error) {
+        showError('registerPhoneError', error.message);
+    }
+}
+
+function generateTempPassword() {
+    // Generate a strong temporary password
+    return 'Temp@' + Math.random().toString(36).slice(2) + Math.random().toString(36).toUpperCase().slice(2) + '!1';
+}
+
+async function verifyRegisterOtp() {
+    const code = document.getElementById('registerPhoneOtp').value;
+    if (!code) {
+        showError('registerPhoneError', 'Please enter the OTP');
+        return;
+    }
+
+    try {
+        // Confirm signup with OTP
+        const response = await fetch(`https://cognito-idp.${CONFIG.region}.amazonaws.com/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-amz-json-1.1',
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.ConfirmSignUp'
+            },
+            body: JSON.stringify({
+                ClientId: CONFIG.clientId,
+                Username: pendingUsername,
+                ConfirmationCode: code
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Invalid OTP');
+        }
+
+        // Move to step 2 (username selection)
+        document.getElementById('phoneStep1').classList.add('hidden');
+        document.getElementById('phoneStep2').classList.remove('hidden');
+
+    } catch (error) {
+        showError('registerPhoneError', error.message);
+    }
+}
+
+// ==========================================
+// Email/Password Auth Functions
+// ==========================================
+
+async function signUp(username, email, password, role) {
     const userAttributes = [
         { Name: 'email', Value: email },
         { Name: 'custom:role', Value: role || 'ASrole' }
     ];
-
-    if (phone) {
-        userAttributes.push({ Name: 'phone_number', Value: phone });
-    }
 
     const response = await fetch(`https://cognito-idp.${CONFIG.region}.amazonaws.com/`, {
         method: 'POST',
@@ -174,43 +357,6 @@ async function respondToMfaChallenge(username, mfaCode, session, challengeName) 
 // UI Helper Functions
 // ==========================================
 
-function showTab(tab) {
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-    const confirmForm = document.getElementById('confirmForm');
-    const mfaForm = document.getElementById('mfaForm');
-    const loginTab = document.getElementById('loginTab');
-    const registerTab = document.getElementById('registerTab');
-
-    // Hide all forms first
-    loginForm.classList.add('hidden');
-    registerForm.classList.add('hidden');
-    confirmForm.classList.add('hidden');
-    mfaForm.classList.add('hidden');
-
-    if (tab === 'login') {
-        loginForm.classList.remove('hidden');
-        loginTab.classList.add('bg-primary');
-        loginTab.classList.remove('text-gray-400');
-        loginTab.classList.add('text-white');
-        registerTab.classList.remove('bg-primary');
-        registerTab.classList.add('text-gray-400');
-        registerTab.classList.remove('text-white');
-    } else if (tab === 'register') {
-        registerForm.classList.remove('hidden');
-        registerTab.classList.add('bg-primary');
-        registerTab.classList.remove('text-gray-400');
-        registerTab.classList.add('text-white');
-        loginTab.classList.remove('bg-primary');
-        loginTab.classList.add('text-gray-400');
-        loginTab.classList.remove('text-white');
-    } else if (tab === 'confirm') {
-        confirmForm.classList.remove('hidden');
-    } else if (tab === 'mfa') {
-        mfaForm.classList.remove('hidden');
-    }
-}
-
 function showError(elementId, message) {
     const el = document.getElementById(elementId);
     el.textContent = message;
@@ -243,7 +389,6 @@ function updateRoleBadges() {
 }
 
 function updateButtonStates() {
-    // Get user's allowed operations
     const allowedOps = [];
     userRoles.forEach(role => {
         if (ROLE_PERMISSIONS[role]) {
@@ -251,7 +396,6 @@ function updateButtonStates() {
         }
     });
 
-    // Update button states
     const buttons = {
         'btnDivide': 'divide',
         'btnMultiply': 'multiply',
@@ -278,14 +422,12 @@ function showCalculator() {
     document.getElementById('calculatorSection').classList.remove('hidden');
     document.getElementById('usernameDisplay').textContent = currentUser;
 
-    // Extract roles from token and update UI
     userRoles = extractRolesFromToken(idToken);
     updateRoleBadges();
     updateButtonStates();
 
-    // Show warning if no roles assigned
     if (userRoles.length === 0) {
-        showAccessDenied('No roles assigned to your account. Contact admin to get DMrole or ASrole.');
+        showAccessDenied('No roles assigned. Contact admin to get DMrole or ASrole.');
     }
 }
 
@@ -297,7 +439,7 @@ function logout() {
     localStorage.removeItem('username');
     document.getElementById('authSection').classList.remove('hidden');
     document.getElementById('calculatorSection').classList.add('hidden');
-    showTab('login');
+    showMainTab('login');
 }
 
 // ==========================================
@@ -315,7 +457,6 @@ function appendNumber(num) {
 }
 
 function setOperation(op) {
-    // Check if user has permission for this operation
     const allowedOps = [];
     userRoles.forEach(role => {
         if (ROLE_PERMISSIONS[role]) {
@@ -389,14 +530,12 @@ async function calculate() {
             updateHistory(data.history);
             hideAccessDenied();
 
-            // Update roles if returned
             if (data.user_roles) {
                 userRoles = data.user_roles;
                 updateRoleBadges();
                 updateButtonStates();
             }
         } else if (response.status === 403) {
-            // Access denied - role check failed
             showAccessDenied(data.error);
             display.textContent = 'Denied';
         } else {
@@ -441,34 +580,46 @@ function updateHistory(history) {
 // Event Listeners
 // ==========================================
 
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
+// Phone Login Form
+document.getElementById('loginPhoneForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideError('loginError');
+    hideError('loginPhoneError');
 
-    const username = document.getElementById('loginUsername').value;
+    const phone = document.getElementById('loginPhone').value;
+    const otp = document.getElementById('loginPhoneOtp').value;
+
+    // For now, show message that phone login needs implementation
+    showError('loginPhoneError', 'Phone OTP login is not fully implemented. Please use Email/Username login.');
+});
+
+// Email Login Form
+document.getElementById('loginEmailForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError('loginEmailError');
+
+    const identifier = document.getElementById('loginIdentifier').value;
     const password = document.getElementById('loginPassword').value;
 
     try {
-        const result = await signIn(username, password);
+        const result = await signIn(identifier, password);
 
         if (result.mfaRequired) {
-            // MFA is required
-            mfaSession = result.session;
-            pendingUsername = username;
-            showTab('mfa');
+            phoneSession = result.session;
+            pendingUsername = identifier;
+            showMainTab('mfa');
         } else {
-            // Login successful
             idToken = result.IdToken;
-            currentUser = username;
+            currentUser = identifier;
             localStorage.setItem('idToken', idToken);
-            localStorage.setItem('username', username);
+            localStorage.setItem('username', identifier);
             showCalculator();
         }
     } catch (error) {
-        showError('loginError', error.message);
+        showError('loginEmailError', error.message);
     }
 });
 
+// MFA Form
 document.getElementById('mfaForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError('mfaError');
@@ -476,37 +627,62 @@ document.getElementById('mfaForm').addEventListener('submit', async (e) => {
     const mfaCode = document.getElementById('mfaCode').value;
 
     try {
-        const result = await respondToMfaChallenge(pendingUsername, mfaCode, mfaSession, 'SMS_MFA');
+        const result = await respondToMfaChallenge(pendingUsername, mfaCode, phoneSession, 'SMS_MFA');
         idToken = result.IdToken;
         currentUser = pendingUsername;
         localStorage.setItem('idToken', idToken);
         localStorage.setItem('username', pendingUsername);
-        mfaSession = null;
+        phoneSession = null;
         showCalculator();
     } catch (error) {
         showError('mfaError', error.message);
     }
 });
 
-document.getElementById('registerForm').addEventListener('submit', async (e) => {
+// Phone Register Form (Final Submit)
+document.getElementById('registerPhoneForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideError('registerError');
+    hideError('registerPhoneError');
 
-    const email = document.getElementById('registerEmail').value;
-    const phone = document.getElementById('registerPhone')?.value || '';
-    const username = document.getElementById('registerUsername').value;
-    const password = document.getElementById('registerPassword').value;
-    const role = document.querySelector('input[name="registerRole"]:checked')?.value || 'ASrole';
+    const username = document.getElementById('registerPhoneUsername').value;
+    const role = document.querySelector('input[name="phoneRegisterRole"]:checked')?.value || 'ASrole';
 
     try {
-        await signUp(username, email, password, phone, role);
-        pendingUsername = username;
-        showTab('confirm');
+        // Update the user's preferred username (Cognito may support this via UpdateUserAttributes)
+        // For now, just log in with the temp username
+        showError('registerPhoneError', 'Registration complete! Please login with your phone number.');
+
+        // Reset form and go to login
+        setTimeout(() => {
+            showMainTab('login');
+            showLoginTab('phone');
+        }, 2000);
+
     } catch (error) {
-        showError('registerError', error.message);
+        showError('registerPhoneError', error.message);
     }
 });
 
+// Email Register Form
+document.getElementById('registerEmailForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError('registerEmailError');
+
+    const email = document.getElementById('registerEmail').value;
+    const username = document.getElementById('registerEmailUsername').value;
+    const password = document.getElementById('registerEmailPassword').value;
+    const role = document.querySelector('input[name="emailRegisterRole"]:checked')?.value || 'ASrole';
+
+    try {
+        await signUp(username, email, password, role);
+        pendingUsername = username;
+        showMainTab('confirm');
+    } catch (error) {
+        showError('registerEmailError', error.message);
+    }
+});
+
+// Confirm Form (Email verification)
 document.getElementById('confirmForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError('confirmError');
@@ -515,8 +691,9 @@ document.getElementById('confirmForm').addEventListener('submit', async (e) => {
 
     try {
         await confirmSignUp(pendingUsername, code);
-        showTab('login');
-        document.getElementById('loginUsername').value = pendingUsername;
+        showMainTab('login');
+        showLoginTab('email');
+        document.getElementById('loginIdentifier').value = pendingUsername;
     } catch (error) {
         showError('confirmError', error.message);
     }
@@ -537,7 +714,7 @@ document.addEventListener('keydown', (e) => {
     else if (e.key === 'Backspace') backspace();
 });
 
-// Check for existing session
+// Check for existing session on load
 window.addEventListener('load', () => {
     const storedToken = localStorage.getItem('idToken');
     const storedUsername = localStorage.getItem('username');
