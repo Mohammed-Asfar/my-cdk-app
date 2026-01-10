@@ -6,21 +6,43 @@ from datetime import datetime
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['HISTORY_TABLE'])
+roles_table = dynamodb.Table(os.environ['ROLES_TABLE'])
 
-# Role-based operation permissions
-ROLE_PERMISSIONS = {
+# Default role permissions (fallback)
+DEFAULT_ROLE_PERMISSIONS = {
     'DMrole': ['divide', 'multiply'],
-    'ASrole': ['add', 'subtract']
+    'ASrole': ['add', 'subtract'],
+    'AdminRole': ['add', 'subtract', 'divide', 'multiply']
 }
+
+def get_role_permissions():
+    """Load role permissions from DynamoDB, merge with defaults."""
+    permissions = DEFAULT_ROLE_PERMISSIONS.copy()
+    
+    try:
+        # Scan RolesTable for custom roles
+        result = roles_table.scan()
+        for item in result.get('Items', []):
+            role_name = item.get('roleName')
+            role_perms = item.get('permissions', [])
+            if role_name and role_perms:
+                permissions[role_name] = role_perms
+    except Exception as e:
+        print(f"Could not load custom roles: {e}")
+    
+    return permissions
 
 
 def handler(event, context):
     """
     Calculator Lambda handler with Role-Based Access Control.
-    - DMrole: can divide and multiply
-    - ASrole: can add and subtract
+    - Loads permissions from RolesTable DynamoDB
+    - Supports custom roles
     """
     try:
+        # Load role permissions (includes custom roles)
+        role_permissions = get_role_permissions()
+        
         # Get user info from Cognito authorizer
         claims = event['requestContext']['authorizer']['claims']
         user_id = claims['sub']
@@ -44,18 +66,25 @@ def handler(event, context):
         allowed = False
         required_role = None
         
-        for role, allowed_ops in ROLE_PERMISSIONS.items():
-            if operation in allowed_ops:
-                required_role = role
-                if role in groups:
+        # Check all roles the user has for this operation
+        for user_role in groups:
+            if user_role in role_permissions:
+                if operation in role_permissions[user_role]:
                     allowed = True
-                break
+                    required_role = user_role
+                    break
         
+        # If not allowed, find what role IS needed
         if not allowed:
+            for role, allowed_ops in role_permissions.items():
+                if operation in allowed_ops:
+                    required_role = role
+                    break
+            
             return response(403, {
-                'error': f'Access Denied: You need "{required_role}" role to perform "{operation}" operation.',
+                'error': f'Access Denied: You need a role with "{operation}" permission.',
                 'your_roles': groups,
-                'required_role': required_role
+                'required_role': required_role or 'Unknown'
             })
         
         # Perform calculation

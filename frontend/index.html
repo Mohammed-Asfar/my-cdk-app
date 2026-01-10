@@ -570,6 +570,147 @@
         </div>
     </div>
 
+    <!-- 👑 Admin Dashboard Section -->
+    <div id="adminSection" class="min-h-screen p-4 hidden">
+        <div class="max-w-7xl mx-auto fade-in">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center gap-4">
+                    <div
+                        class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+                            </path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">Admin Dashboard</h1>
+                        <p class="text-gray-400 text-sm">Manage users, roles, and history</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="showCalculatorFromAdmin()"
+                        class="px-4 py-2 bg-primary/20 text-primary hover:bg-primary/30 rounded-xl transition-colors flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                        Calculator
+                    </button>
+                    <button onclick="logout()"
+                        class="px-4 py-2 text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                            </path>
+                        </svg>
+                        Logout
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Tabs -->
+            <div class="flex gap-2 mb-6">
+                <button id="adminUsersTab" onclick="showAdminTab('users')"
+                    class="px-4 py-2 rounded-xl bg-primary text-white font-medium transition-all">
+                    👥 Users
+                </button>
+                <button id="adminRolesTab" onclick="showAdminTab('roles')"
+                    class="px-4 py-2 rounded-xl bg-slate-800/50 text-gray-300 font-medium transition-all hover:bg-slate-700/50">
+                    🎭 Roles
+                </button>
+                <button id="adminHistoryTab" onclick="showAdminTab('history')"
+                    class="px-4 py-2 rounded-xl bg-slate-800/50 text-gray-300 font-medium transition-all hover:bg-slate-700/50">
+                    📊 All History
+                </button>
+            </div>
+
+            <!-- Users Panel -->
+            <div id="adminUsersPanel" class="glass rounded-3xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-white">User Management</h2>
+                    <button onclick="loadUsers()"
+                        class="px-4 py-2 bg-primary/20 text-primary rounded-xl hover:bg-primary/30 transition-all">
+                        Refresh
+                    </button>
+                </div>
+                <div id="usersTable" class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-slate-700">
+                                <th class="py-3 px-4 text-gray-400 font-medium">Username</th>
+                                <th class="py-3 px-4 text-gray-400 font-medium">Email/Phone</th>
+                                <th class="py-3 px-4 text-gray-400 font-medium">Role</th>
+                                <th class="py-3 px-4 text-gray-400 font-medium">Status</th>
+                                <th class="py-3 px-4 text-gray-400 font-medium">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-gray-500">Loading users...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Roles Panel -->
+            <div id="adminRolesPanel" class="glass rounded-3xl p-6 hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-white">Role Management</h2>
+                </div>
+
+                <!-- Create Role Form -->
+                <div class="bg-slate-800/50 rounded-xl p-4 mb-6">
+                    <h3 class="text-white font-medium mb-4">Create New Role</h3>
+                    <div class="flex gap-4">
+                        <input type="text" id="newRoleName" placeholder="Role name"
+                            class="flex-1 px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary">
+                        <div class="flex items-center gap-4">
+                            <label class="flex items-center gap-2 text-gray-300">
+                                <input type="checkbox" id="permAdd" checked class="rounded"> Add
+                            </label>
+                            <label class="flex items-center gap-2 text-gray-300">
+                                <input type="checkbox" id="permSubtract" checked class="rounded"> Subtract
+                            </label>
+                            <label class="flex items-center gap-2 text-gray-300">
+                                <input type="checkbox" id="permMultiply" class="rounded"> Multiply
+                            </label>
+                            <label class="flex items-center gap-2 text-gray-300">
+                                <input type="checkbox" id="permDivide" class="rounded"> Divide
+                            </label>
+                        </div>
+                        <button onclick="createRole()"
+                            class="px-6 py-3 bg-gradient-to-r from-primary to-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-all">
+                            Create
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Roles List -->
+                <div id="rolesList" class="space-y-3">
+                    <div class="text-gray-500 text-center py-8">Loading roles...</div>
+                </div>
+            </div>
+
+            <!-- History Panel -->
+            <div id="adminHistoryPanel" class="glass rounded-3xl p-6 hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-white">All Users History</h2>
+                    <button onclick="loadAllHistory()"
+                        class="px-4 py-2 bg-primary/20 text-primary rounded-xl hover:bg-primary/30 transition-all">
+                        Refresh
+                    </button>
+                </div>
+                <div id="allHistoryList" class="space-y-3 max-h-[600px] overflow-y-auto">
+                    <div class="text-gray-500 text-center py-8">Loading history...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 

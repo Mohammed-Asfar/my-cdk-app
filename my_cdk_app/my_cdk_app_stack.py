@@ -134,6 +134,16 @@ class MyCdkAppStack(Stack):
             precedence=2
         )
 
+        # 👑 Admin Role Group (highest precedence)
+        admin_role_group = cognito.CfnUserPoolGroup(
+            self,
+            "AdminRoleGroup",
+            user_pool_id=user_pool.user_pool_id,
+            group_name="AdminRole",
+            description="Administrators with full access",
+            precedence=0  # Highest precedence
+        )
+
         # 📱 User Pool Client (App client) with Custom Auth Flow
         user_pool_client = cognito.UserPoolClient(
             self,
@@ -153,7 +163,7 @@ class MyCdkAppStack(Stack):
                 .with_custom_attributes("role"),
         )
         
-        # 📊 DynamoDB Table
+        # 📊 DynamoDB Tables
         history_table = dynamodb.Table(
             self,
             "CalculatorHistory",
@@ -169,6 +179,18 @@ class MyCdkAppStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        # 🎭 Roles Table for custom roles
+        roles_table = dynamodb.Table(
+            self,
+            "RolesTable",
+            partition_key=dynamodb.Attribute(
+                name="roleName",
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         # ⚡ Lambda Function for Calculations
         calculate_lambda = _lambda.Function(
             self,
@@ -178,12 +200,52 @@ class MyCdkAppStack(Stack):
             code=_lambda.Code.from_asset("lambda"),
             timeout=Duration.seconds(30),
             environment={
-                "HISTORY_TABLE": history_table.table_name
+                "HISTORY_TABLE": history_table.table_name,
+                "ROLES_TABLE": roles_table.table_name
             }
         )
 
         # Grant Lambda permissions to DynamoDB
         history_table.grant_read_write_data(calculate_lambda)
+        roles_table.grant_read_data(calculate_lambda)
+
+        # 👑 Admin Lambda Function
+        admin_lambda = _lambda.Function(
+            self,
+            "AdminLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="admin_handler.handler",
+            code=_lambda.Code.from_asset("lambda"),
+            timeout=Duration.seconds(30),
+            environment={
+                "USER_POOL_ID": user_pool.user_pool_id,
+                "HISTORY_TABLE": history_table.table_name,
+                "ROLES_TABLE": roles_table.table_name
+            }
+        )
+
+        # Grant Admin Lambda permissions
+        history_table.grant_read_write_data(admin_lambda)
+        roles_table.grant_read_write_data(admin_lambda)
+        
+        # Grant Cognito admin permissions to Admin Lambda
+        admin_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "cognito-idp:ListUsers",
+                    "cognito-idp:AdminListGroupsForUser",
+                    "cognito-idp:AdminAddUserToGroup",
+                    "cognito-idp:AdminRemoveUserFromGroup",
+                    "cognito-idp:AdminUpdateUserAttributes",
+                    "cognito-idp:AdminDisableUser",
+                    "cognito-idp:AdminEnableUser",
+                    "cognito-idp:AdminDeleteUser",
+                    "cognito-idp:CreateGroup",
+                    "cognito-idp:DeleteGroup"
+                ],
+                resources=[f"arn:aws:cognito-idp:{self.region}:{self.account}:userpool/*"]
+            )
+        )
 
         # 🌐 API Gateway
         api = apigw.RestApi(
@@ -213,6 +275,42 @@ class MyCdkAppStack(Stack):
             authorizer=authorizer,
             authorization_type=apigw.AuthorizationType.COGNITO,
         )
+
+        # /roles endpoint (public for registration dropdown)
+        roles_resource = api.root.add_resource("roles")
+        roles_resource.add_method(
+            "GET",
+            apigw.LambdaIntegration(admin_lambda),
+            authorizer=authorizer,
+            authorization_type=apigw.AuthorizationType.COGNITO,
+        )
+
+        # 👑 Admin endpoints
+        admin_resource = api.root.add_resource("admin")
+        
+        # /admin/users
+        users_resource = admin_resource.add_resource("users")
+        users_resource.add_method("GET", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        users_resource.add_method("DELETE", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        
+        # /admin/users/role
+        user_role_resource = users_resource.add_resource("role")
+        user_role_resource.add_method("POST", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        
+        # /admin/users/block
+        user_block_resource = users_resource.add_resource("block")
+        user_block_resource.add_method("POST", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        
+        # /admin/roles
+        admin_roles_resource = admin_resource.add_resource("roles")
+        admin_roles_resource.add_method("GET", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        admin_roles_resource.add_method("POST", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        admin_roles_resource.add_method("DELETE", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        
+        # /admin/history
+        admin_history_resource = admin_resource.add_resource("history")
+        admin_history_resource.add_method("GET", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
+        admin_history_resource.add_method("DELETE", apigw.LambdaIntegration(admin_lambda), authorizer=authorizer, authorization_type=apigw.AuthorizationType.COGNITO)
 
         # 📤 Outputs
         CfnOutput(self, "UserPoolId", value=user_pool.user_pool_id)

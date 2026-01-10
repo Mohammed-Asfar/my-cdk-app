@@ -2,9 +2,9 @@
 // Configuration - UPDATE THESE AFTER CDK DEPLOY
 // ==========================================
 const CONFIG = {
-    userPoolId: 'ap-south-1_HC1WlqBBi',
-    clientId: '5n3hd4efu5h6tmf4n5eumtd3no',
-    apiEndpoint: 'https://n6qstad2y7.execute-api.ap-south-1.amazonaws.com/prod/',
+    userPoolId: 'ap-south-1_ySvEg3wQe',
+    clientId: '21g29n3gn0tgjo6r4jjhn67hlh',
+    apiEndpoint: 'https://4jcswff7ef.execute-api.ap-south-1.amazonaws.com/prod/',
     region: 'ap-south-1'
 };
 
@@ -21,10 +21,11 @@ let pendingPhone = '';
 let pendingUsername = '';
 let phoneSession = null;
 
-// Role permissions
-const ROLE_PERMISSIONS = {
+// Role permissions - will be updated dynamically from API
+let ROLE_PERMISSIONS = {
     'DMrole': ['divide', 'multiply'],
-    'ASrole': ['add', 'subtract']
+    'ASrole': ['add', 'subtract'],
+    'AdminRole': ['add', 'subtract', 'divide', 'multiply'] // Admin can do everything
 };
 
 // ==========================================
@@ -453,17 +454,61 @@ function updateButtonStates() {
     });
 }
 
-function showCalculator() {
+async function showCalculator() {
+    userRoles = extractRolesFromToken(idToken);
+
+    // If user is ONLY admin (no other roles), go directly to admin panel
+    if (userRoles.includes('AdminRole') && userRoles.length === 1) {
+        document.getElementById('authSection').classList.add('hidden');
+        document.getElementById('calculatorSection').classList.add('hidden');
+        document.getElementById('adminSection').classList.remove('hidden');
+        loadUsers();
+        return;
+    }
+
     document.getElementById('authSection').classList.add('hidden');
     document.getElementById('calculatorSection').classList.remove('hidden');
+    document.getElementById('adminSection').classList.add('hidden');
     document.getElementById('usernameDisplay').textContent = currentUser;
 
-    userRoles = extractRolesFromToken(idToken);
+    // Load custom role permissions from API
+    await loadRolePermissions();
+
     updateRoleBadges();
     updateButtonStates();
 
+    // Show admin button if user is admin (and has other roles too)
+    if (userRoles.includes('AdminRole')) {
+        addAdminButton();
+    }
+
     if (userRoles.length === 0) {
-        showAccessDenied('No roles assigned. Contact admin to get DMrole or ASrole.');
+        showAccessDenied('No roles assigned. Contact admin to get a role.');
+    }
+}
+
+// Load role permissions from the API (for custom roles)
+async function loadRolePermissions() {
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/roles`, {
+            headers: { 'Authorization': idToken }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const roles = data.roles || [];
+
+            // Update ROLE_PERMISSIONS with custom roles
+            roles.forEach(role => {
+                if (role.roleName && role.permissions) {
+                    ROLE_PERMISSIONS[role.roleName] = role.permissions;
+                }
+            });
+
+            console.log('Loaded role permissions:', ROLE_PERMISSIONS);
+        }
+    } catch (error) {
+        console.log('Could not load custom role permissions:', error);
     }
 }
 
@@ -475,6 +520,10 @@ function logout() {
     localStorage.removeItem('username');
     document.getElementById('authSection').classList.remove('hidden');
     document.getElementById('calculatorSection').classList.add('hidden');
+    document.getElementById('adminSection').classList.add('hidden');
+    // Remove admin button if it exists
+    const adminBtn = document.getElementById('adminPanelBtn');
+    if (adminBtn) adminBtn.remove();
     showMainTab('login');
 }
 
@@ -803,3 +852,380 @@ window.addEventListener('load', () => {
         showCalculator();
     }
 });
+
+// ==========================================
+// Admin Functions
+// ==========================================
+
+function isAdmin() {
+    return userRoles.includes('AdminRole');
+}
+
+function addAdminButton() {
+    // Check if button already exists
+    if (document.getElementById('adminPanelBtn')) return;
+
+    const header = document.querySelector('#calculatorSection .flex.items-center.justify-between');
+    const adminBtn = document.createElement('button');
+    adminBtn.id = 'adminPanelBtn';
+    adminBtn.className = 'px-4 py-2 bg-gradient-to-r from-amber-500 to-red-500 text-white rounded-xl hover:opacity-90 transition-all flex items-center gap-2 mr-4';
+    adminBtn.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+            </path>
+        </svg>
+        Admin
+    `;
+    adminBtn.onclick = showAdminDashboard;
+
+    const buttonsContainer = header.querySelector('.flex.items-center.gap-4');
+    buttonsContainer.insertBefore(adminBtn, buttonsContainer.firstChild);
+}
+
+function showAdminDashboard() {
+    document.getElementById('calculatorSection').classList.add('hidden');
+    document.getElementById('adminSection').classList.remove('hidden');
+    loadUsers();
+}
+
+function showCalculatorFromAdmin() {
+    document.getElementById('adminSection').classList.add('hidden');
+    document.getElementById('calculatorSection').classList.remove('hidden');
+}
+
+function showAdminTab(tab) {
+    const tabs = ['users', 'roles', 'history'];
+    tabs.forEach(t => {
+        document.getElementById(`admin${t.charAt(0).toUpperCase() + t.slice(1)}Tab`).classList.remove('bg-primary', 'text-white');
+        document.getElementById(`admin${t.charAt(0).toUpperCase() + t.slice(1)}Tab`).classList.add('bg-slate-800/50', 'text-gray-300');
+        document.getElementById(`admin${t.charAt(0).toUpperCase() + t.slice(1)}Panel`).classList.add('hidden');
+    });
+
+    document.getElementById(`admin${tab.charAt(0).toUpperCase() + tab.slice(1)}Tab`).classList.add('bg-primary', 'text-white');
+    document.getElementById(`admin${tab.charAt(0).toUpperCase() + tab.slice(1)}Tab`).classList.remove('bg-slate-800/50', 'text-gray-300');
+    document.getElementById(`admin${tab.charAt(0).toUpperCase() + tab.slice(1)}Panel`).classList.remove('hidden');
+
+    if (tab === 'users') loadUsers();
+    else if (tab === 'roles') loadRoles();
+    else if (tab === 'history') loadAllHistory();
+}
+
+// ==========================================
+// Admin API Calls
+// ==========================================
+
+let allRoles = []; // Cache for roles
+
+async function loadUsers() {
+    try {
+        // Load roles first for the dropdown
+        const rolesResponse = await fetch(`${CONFIG.apiEndpoint}admin/roles`, {
+            headers: { 'Authorization': idToken }
+        });
+        if (rolesResponse.ok) {
+            const rolesData = await rolesResponse.json();
+            allRoles = rolesData.roles || [];
+        }
+
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/users`, {
+            headers: { 'Authorization': idToken }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            renderUsersTable(data.users);
+        } else {
+            console.error('Failed to load users:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+    }
+}
+
+function renderUsersTable(users) {
+    const tbody = document.getElementById('usersTableBody');
+
+    if (!users || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-gray-500">No users found</td></tr>';
+        return;
+    }
+
+    // Build role options including custom roles
+    const roleOptions = allRoles.map(role => role.roleName);
+    // Ensure AdminRole is always included
+    if (!roleOptions.includes('AdminRole')) {
+        roleOptions.push('AdminRole');
+    }
+
+    tbody.innerHTML = users.map(user => {
+        const optionsHtml = roleOptions.map(roleName => {
+            const isSelected = user.groups.includes(roleName) ? 'selected' : '';
+            return `<option value="${roleName}" ${isSelected}>${roleName}</option>`;
+        }).join('');
+
+        return `
+        <tr class="border-b border-slate-700/50 hover:bg-slate-800/30">
+            <td class="py-3 px-4 text-white">${user.username}</td>
+            <td class="py-3 px-4 text-gray-400">${user.email || user.phone || '-'}</td>
+            <td class="py-3 px-4">
+                <select onchange="changeUserRole('${user.username}', this.value)" 
+                    class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-white text-sm">
+                    ${optionsHtml}
+                </select>
+            </td>
+            <td class="py-3 px-4">
+                <span class="px-2 py-1 rounded-lg text-xs ${user.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">
+                    ${user.enabled ? 'Active' : 'Blocked'}
+                </span>
+            </td>
+            <td class="py-3 px-4">
+                <div class="flex gap-2">
+                    <button onclick="toggleBlockUser('${user.username}', ${user.enabled})"
+                        class="px-3 py-1 rounded-lg text-xs ${user.enabled ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}">
+                        ${user.enabled ? 'Block' : 'Unblock'}
+                    </button>
+                    <button onclick="deleteUser('${user.username}')"
+                        class="px-3 py-1 rounded-lg text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                        Delete
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `}).join('');
+}
+
+async function changeUserRole(username, newRole) {
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/users/role`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': idToken
+            },
+            body: JSON.stringify({ username, role: newRole })
+        });
+
+        if (response.ok) {
+            loadUsers();
+        } else {
+            const data = await response.json();
+            alert('Failed to change role: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function toggleBlockUser(username, isEnabled) {
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/users/block`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': idToken
+            },
+            body: JSON.stringify({ username, block: isEnabled })
+        });
+
+        if (response.ok) {
+            loadUsers();
+        } else {
+            const data = await response.json();
+            alert('Failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function deleteUser(username) {
+    if (!confirm(`Are you sure you want to delete user "${username}"?`)) return;
+
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/users`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': idToken
+            },
+            body: JSON.stringify({ username })
+        });
+
+        if (response.ok) {
+            loadUsers();
+        } else {
+            const data = await response.json();
+            alert('Failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// ==========================================
+// Role Management
+// ==========================================
+
+async function loadRoles() {
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/roles`, {
+            headers: { 'Authorization': idToken }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            renderRolesList(data.roles);
+        }
+    } catch (error) {
+        console.error('Error loading roles:', error);
+    }
+}
+
+function renderRolesList(roles) {
+    const container = document.getElementById('rolesList');
+
+    container.innerHTML = roles.map(role => `
+        <div class="bg-slate-800/30 rounded-xl p-4 flex items-center justify-between">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="text-white font-medium">${role.roleName}</span>
+                    ${role.isDefault ? '<span class="px-2 py-0.5 rounded text-xs bg-primary/20 text-primary">Default</span>' : ''}
+                </div>
+                <p class="text-gray-400 text-sm mt-1">
+                    Permissions: ${role.permissions ? role.permissions.join(', ') : 'None'}
+                </p>
+            </div>
+            ${!role.isDefault ? `
+                <button onclick="deleteRole('${role.roleName}')"
+                    class="px-3 py-1 rounded-lg text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                    Delete
+                </button>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+async function createRole() {
+    const roleName = document.getElementById('newRoleName').value.trim();
+    if (!roleName) {
+        alert('Please enter a role name');
+        return;
+    }
+
+    const permissions = [];
+    if (document.getElementById('permAdd').checked) permissions.push('add');
+    if (document.getElementById('permSubtract').checked) permissions.push('subtract');
+    if (document.getElementById('permMultiply').checked) permissions.push('multiply');
+    if (document.getElementById('permDivide').checked) permissions.push('divide');
+
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/roles`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': idToken
+            },
+            body: JSON.stringify({ roleName, permissions })
+        });
+
+        if (response.ok) {
+            document.getElementById('newRoleName').value = '';
+            loadRoles();
+        } else {
+            const data = await response.json();
+            alert('Failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function deleteRole(roleName) {
+    if (!confirm(`Are you sure you want to delete role "${roleName}"?`)) return;
+
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/roles`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': idToken
+            },
+            body: JSON.stringify({ roleName })
+        });
+
+        if (response.ok) {
+            loadRoles();
+        } else {
+            const data = await response.json();
+            alert('Failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// ==========================================
+// History Management
+// ==========================================
+
+async function loadAllHistory() {
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/history`, {
+            headers: { 'Authorization': idToken }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            renderAllHistory(data.history);
+        }
+    } catch (error) {
+        console.error('Error loading history:', error);
+    }
+}
+
+function renderAllHistory(history) {
+    const container = document.getElementById('allHistoryList');
+    const opSymbols = { add: '+', subtract: '−', multiply: '×', divide: '÷' };
+
+    if (!history || history.length === 0) {
+        container.innerHTML = '<div class="text-gray-500 text-center py-8">No history found</div>';
+        return;
+    }
+
+    container.innerHTML = history.map(item => `
+        <div class="bg-slate-800/30 rounded-xl p-4 flex items-center justify-between hover:bg-slate-800/50">
+            <div>
+                <div class="text-white">
+                    ${item.operand1} ${opSymbols[item.operation] || item.operation} ${item.operand2} = ${item.result}
+                </div>
+                <div class="text-gray-500 text-xs mt-1">
+                    User: ${item.userId} | ${new Date(item.timestamp).toLocaleString()}
+                </div>
+            </div>
+            <button onclick="deleteHistoryEntry('${item.userId}', '${item.timestamp}')"
+                class="px-3 py-1 rounded-lg text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                Delete
+            </button>
+        </div>
+    `).join('');
+}
+
+async function deleteHistoryEntry(userId, timestamp) {
+    try {
+        const response = await fetch(`${CONFIG.apiEndpoint}admin/history`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': idToken
+            },
+            body: JSON.stringify({ userId, timestamp })
+        });
+
+        if (response.ok) {
+            loadAllHistory();
+        }
+    } catch (error) {
+        console.error('Error deleting history:', error);
+    }
+}
