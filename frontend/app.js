@@ -2,9 +2,9 @@
 // Configuration - UPDATE THESE AFTER CDK DEPLOY
 // ==========================================
 const CONFIG = {
-    userPoolId: 'ap-south-1_uu40EUfgR',
-    clientId: '3jdla5hg3fc7fo2e4lvg1088i9',
-    apiEndpoint: 'https://zrcjl6c65i.execute-api.ap-south-1.amazonaws.com/prod/',
+    userPoolId: 'ap-south-1_HC1WlqBBi',
+    clientId: '5n3hd4efu5h6tmf4n5eumtd3no',
+    apiEndpoint: 'https://n6qstad2y7.execute-api.ap-south-1.amazonaws.com/prod/',
     region: 'ap-south-1'
 };
 
@@ -128,7 +128,7 @@ function showRegisterTab(tab) {
 }
 
 // ==========================================
-// Phone OTP Functions
+// Phone OTP Functions (CUSTOM_AUTH Flow)
 // ==========================================
 
 async function requestLoginOtp() {
@@ -139,21 +139,52 @@ async function requestLoginOtp() {
     }
 
     try {
-        // For phone login, we use CUSTOM_AUTH flow with phone number
-        // But Cognito doesn't support passwordless phone OTP login out of the box
-        // We'll need to use SMS MFA or a custom Lambda trigger
-        // For now, show error explaining limitation
-        showError('loginPhoneError', 'Phone OTP login requires phone to be registered first. Use Email/Username login.');
+        // Find username by phone number (user needs to be registered)
+        // For now, we'll use phone as username format: phone_+919894954524
+        const username = 'phone_' + phone.replace(/[^0-9]/g, '');
 
-        // Show OTP section anyway for demo
+        // Initiate CUSTOM_AUTH flow
+        const response = await fetch(`https://cognito-idp.${CONFIG.region}.amazonaws.com/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-amz-json-1.1',
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth'
+            },
+            body: JSON.stringify({
+                AuthFlow: 'CUSTOM_AUTH',
+                ClientId: CONFIG.clientId,
+                AuthParameters: {
+                    USERNAME: username
+                }
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to send OTP');
+        }
+
+        // Store session for later verification
+        phoneSession = data.Session;
+        pendingPhone = phone;
+        pendingUsername = username;
+
+        // Show OTP input
         document.getElementById('loginOtpSection').classList.remove('hidden');
         document.getElementById('loginPhoneSubmit').classList.remove('hidden');
-        pendingPhone = phone;
+
+        showError('loginPhoneError', ''); // Clear any previous errors
+        document.getElementById('loginPhoneError').classList.add('hidden');
+
+        console.log('OTP sent! Session stored.');
 
     } catch (error) {
         showError('loginPhoneError', error.message);
     }
 }
+
+let pendingRole = 'ASrole'; // Store selected role
 
 async function requestRegisterOtp() {
     const phone = document.getElementById('registerPhone').value;
@@ -161,6 +192,11 @@ async function requestRegisterOtp() {
         showError('registerPhoneError', 'Please enter your phone number');
         return;
     }
+
+    // Get selected role from the form (step 2 has role selection, but we need to check it)
+    // If role is selected in step 1, use it; otherwise default will be set in step 2
+    const selectedRole = document.querySelector('input[name="phoneRegisterRole"]:checked')?.value || 'ASrole';
+    pendingRole = selectedRole;
 
     try {
         // Generate a temporary username from phone
@@ -179,7 +215,7 @@ async function requestRegisterOtp() {
                 Password: generateTempPassword(), // Generate a strong temp password
                 UserAttributes: [
                     { Name: 'phone_number', Value: phone },
-                    { Name: 'custom:role', Value: 'ASrole' } // Default role
+                    { Name: 'custom:role', Value: selectedRole } // Use selected role!
                 ]
             })
         });
@@ -580,16 +616,58 @@ function updateHistory(history) {
 // Event Listeners
 // ==========================================
 
-// Phone Login Form
+// Phone Login Form - Verify OTP with CUSTOM_AUTH
 document.getElementById('loginPhoneForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError('loginPhoneError');
 
-    const phone = document.getElementById('loginPhone').value;
     const otp = document.getElementById('loginPhoneOtp').value;
 
-    // For now, show message that phone login needs implementation
-    showError('loginPhoneError', 'Phone OTP login is not fully implemented. Please use Email/Username login.');
+    if (!otp || !phoneSession) {
+        showError('loginPhoneError', 'Please enter the OTP sent to your phone');
+        return;
+    }
+
+    try {
+        // Respond to custom challenge with OTP
+        const response = await fetch(`https://cognito-idp.${CONFIG.region}.amazonaws.com/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-amz-json-1.1',
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.RespondToAuthChallenge'
+            },
+            body: JSON.stringify({
+                ChallengeName: 'CUSTOM_CHALLENGE',
+                ClientId: CONFIG.clientId,
+                Session: phoneSession,
+                ChallengeResponses: {
+                    USERNAME: pendingUsername,
+                    ANSWER: otp
+                }
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'OTP verification failed');
+        }
+
+        // Check if we got tokens (successful login)
+        if (data.AuthenticationResult) {
+            idToken = data.AuthenticationResult.IdToken;
+            currentUser = pendingUsername;
+            localStorage.setItem('idToken', idToken);
+            localStorage.setItem('username', pendingUsername);
+            phoneSession = null;
+            showCalculator();
+        } else {
+            throw new Error('Unexpected response from authentication');
+        }
+
+    } catch (error) {
+        showError('loginPhoneError', error.message);
+    }
 });
 
 // Email Login Form

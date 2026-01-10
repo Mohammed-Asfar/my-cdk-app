@@ -30,7 +30,43 @@ class MyCdkAppStack(Stack):
             timeout=Duration.seconds(10),
         )
 
-        # 🔐 Cognito User Pool with MFA, Phone/Email Login
+        # 🔐 Custom Auth Lambdas for Passwordless OTP Login
+        define_auth_lambda = _lambda.Function(
+            self,
+            "DefineAuthChallengeLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="define_auth_challenge.handler",
+            code=_lambda.Code.from_asset("lambda"),
+            timeout=Duration.seconds(10),
+        )
+
+        create_auth_lambda = _lambda.Function(
+            self,
+            "CreateAuthChallengeLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="create_auth_challenge.handler",
+            code=_lambda.Code.from_asset("lambda"),
+            timeout=Duration.seconds(30),
+        )
+
+        verify_auth_lambda = _lambda.Function(
+            self,
+            "VerifyAuthChallengeLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="verify_auth_challenge.handler",
+            code=_lambda.Code.from_asset("lambda"),
+            timeout=Duration.seconds(10),
+        )
+
+        # Grant SNS permissions to CreateAuthChallenge Lambda (for sending SMS)
+        create_auth_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["sns:Publish"],
+                resources=["*"]
+            )
+        )
+
+        # 🔐 Cognito User Pool with MFA, Phone/Email Login and Custom Auth
         user_pool = cognito.UserPool(
             self,
             "UserPool",
@@ -62,9 +98,12 @@ class MyCdkAppStack(Stack):
             ),
             account_recovery=cognito.AccountRecovery.EMAIL_AND_PHONE_WITHOUT_MFA,
             removal_policy=RemovalPolicy.DESTROY,
-            # 🎯 Lambda Trigger for Post Confirmation
+            # 🎯 Lambda Triggers for Auth
             lambda_triggers=cognito.UserPoolTriggers(
-                post_confirmation=post_confirmation_lambda
+                post_confirmation=post_confirmation_lambda,
+                define_auth_challenge=define_auth_lambda,
+                create_auth_challenge=create_auth_lambda,
+                verify_auth_challenge_response=verify_auth_lambda
             )
         )
 
@@ -95,14 +134,15 @@ class MyCdkAppStack(Stack):
             precedence=2
         )
 
-        # 📱 User Pool Client (App client)
+        # 📱 User Pool Client (App client) with Custom Auth Flow
         user_pool_client = cognito.UserPoolClient(
             self,
             "UserPoolClient",
             user_pool=user_pool,
             auth_flows=cognito.AuthFlow(
                 user_password=True,
-                user_srp=True
+                user_srp=True,
+                custom=True  # Enable CUSTOM_AUTH for passwordless OTP
             ),
             generate_secret=False,
             read_attributes=cognito.ClientAttributes()
